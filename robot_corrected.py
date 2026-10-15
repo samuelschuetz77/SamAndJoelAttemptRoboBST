@@ -1,6 +1,7 @@
+# Samuel Schuetz | 10/06 - 10/10/2026 | Initially worked with Harry
 import functools
 
-def solution(frequencies, cost_per_rotation, move_cost_per_distance, cost_per_scan):
+def solution(frequencies, cost_per_rotation, move_cost_per_distance, cost_per_scan, memoize=True):
     n = len(frequencies)
     # Given:
     # * a left and right index on the frequencies array
@@ -10,7 +11,6 @@ def solution(frequencies, cost_per_rotation, move_cost_per_distance, cost_per_sc
     # return a tuple with two items:
     # 1) the cost of the optimal BST
     # 2) the optimal BST
-    @functools.cache
     def g(L, R, parent, grandparent):
         
         if L > R:
@@ -33,7 +33,7 @@ def solution(frequencies, cost_per_rotation, move_cost_per_distance, cost_per_sc
             # Add cost for scans
             subtree_cost += subtree_freq_total * cost_per_scan
             
-             # Add cost for new distance to be traveled
+             # Add cost for new distance to be traveled, we care about rights because rights we can double to get round trips
             if i > parent:
                 subtree_cost += 2 * move_cost_per_distance * subtree_freq_total * abs(parent - i)
                 
@@ -47,10 +47,13 @@ def solution(frequencies, cost_per_rotation, move_cost_per_distance, cost_per_sc
 
         return best_subtree_cost, best_subtree
 
+    if memoize:
+        g = functools.cache(g)
+
     return g(0, n - 1, 0, 0)
 
 def optimal_cost_backtracking(frequencies, cost_per_rotation, move_cost_per_distance, cost_per_scan):
-    best_overall_cost, best_tree = solution(frequencies, cost_per_rotation, move_cost_per_distance, cost_per_scan)
+    best_overall_cost, best_tree = solution(frequencies, cost_per_rotation, move_cost_per_distance, cost_per_scan, memoize=False)
     return best_overall_cost
 
 def optimal_cost_memoized(frequencies, cost_per_rotation, move_cost_per_distance, cost_per_scan):
@@ -145,3 +148,50 @@ if __name__ == "__main__":
             sm -= prefsum[L - 1]
         return sm
 """
+
+
+# Part 1 -- Planning the solution
+# 1. Top-level function, parameters, and return value:
+# optimal_cost_backtracking(frequencies, cost_per_rotation,
+# move_cost_per_distance, cost_per_scan) returns the minimum total expected
+# cost of all deliveries, including returning books to bin 0.
+# frequencies[i] gives the expected number of requests for bin i.
+#
+# 2. Recursive subproblem and parameters:
+# g(L, R, parent, grandparent) finds the best subtree for the bins from L to R.
+# Parent and grandparent identify the incoming movement direction.
+# All four parameters are hashable integers; frequencies and costs come
+# from the enclosing function.
+#
+# 3. How the top-level function uses the recursive function:
+# solution calls g(0, n - 1, 0, 0), covering every bin and encoding the
+# starting position and negative direction. The cost-only wrapper returns
+# the cost component; optimal_tree returns both cost and tree.
+#
+# 4(a). Base cases:
+# L > R means the interval is empty. Single-bin intervals use the normal
+# root calculation with two empty children.
+#
+# 4(b). Base-case return values:
+# Return (0, ()) for an empty interval: zero additional cost and an empty
+# tree. A cost-only recursive version would return just 0.
+#
+# 5(a). What the recursive function chooses:
+# Choose the root index i for the current interval. Every request for a
+# bin in that interval must scan this root first.
+#
+# 5(b). Options for that choice:
+# Try every i from L through R, inclusive. Its left interval is L : i-1,
+# and its right interval is i+1 : R
+#
+# 5(c). Cost of each candidate and recursive calls:
+# Add costs from g(L,i-1,i,parent) and g(i+1,R,i,parent).
+# With F=sum(frequencies[L:R+1]), add F*cost_per_scan.
+# If i>parent, add 2*(i-parent)*F*move_cost_per_distance;
+# also add 2*F*cost_per_rotation when parent<=grandparent.
+# Doubling accounts for return travel and paired turns.
+#
+# 5(d). Combining the options:
+# Keep the candidate with the smallest total cost and its tree
+# (i, left_tree, right_tree). Return that cost and tree after trying
+# every possible root.
